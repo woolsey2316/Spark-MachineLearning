@@ -3,6 +3,7 @@
 //DELETE hadoop-data/dn
 //DELETE hadoop-data/nn
 
+ssh localhost
 $HADOOP_HOME/sbin/stop-dfs.sh
 $HADOOP_HOME/sbin/stop-yarn.sh
 

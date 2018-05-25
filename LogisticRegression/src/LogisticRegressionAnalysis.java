@@ -5,9 +5,12 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.mllib.linalg.Vector;
 import org.apache.spark.mllib.linalg.Matrix;
 import org.apache.spark.ml.linalg.VectorUDT;
-import org.apache.spark.mllib.linalg.distributed.RowMatrix;
-import org.apache.spark.mllib.classification.LogisticRegressionModel;
-import org.apache.spark.mllib.classification.LogisticRegressionWithLBFGS;
+import org.apache.spark.ml.linalg.distributed.RowMatrix;
+import org.apache.spark.ml.classification.LogisticRegression;
+import org.apache.spark.ml.classification.LogisticRegressionModel;
+import org.apache.spark.ml.classification.LogisticRegressionWithLBFGS;
+import org.apache.spark.ml.feature.PCAModel;
+import org.apache.spark.ml.feature.PCA;
 
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.StructField;
@@ -22,7 +25,7 @@ import org.apache.spark.sql.types.Metadata;
 spark-submit  \
  --class LogisticRegressionAnalysis \
  --master yarn-cluster \
- stage3LG.jar \
+ Stage3LG.jar \
  A2out1/
 *
 */
@@ -31,29 +34,22 @@ public class LogisticRegressionAnalysis{
 
   public static void main(String[] args) {
 
+    String outputFilePath = args[0];
+    // Load training data
     SparkSession spark = SparkSession
     .builder()
     .appName("Logistic Regression")
     .getOrCreate();
 
     StructType schema = new StructType(new StructField[]{
-      new StructField("label", DataTypes.DoubleType, false, Metadata.empty()),
+      new StructField("label", DataTypes.IntegerType, false, Metadata.empty()),
       new StructField("features", new VectorUDT(), false, Metadata.empty()),
     });
 
     Dataset<Row> df = spark
       .read()
       .schema(schema)
-      .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Test-28x28.csv");
-
-    JavaRDD<LabeledPoint> parsedData = data.map(line -> {
-    String[] features = line.split(",");
-    double[] v = new double[features.length];
-    for (int i = 0; i < features.length - 1; i++) {
-      v[i] = Double.parseDouble(features[i]);
-    }
-    return new LabeledPoint(Double.parseDouble(parts[0]), Vectors.dense(v));
-    });
+      .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Train-label-28x28.csv");
 
     PCAModel pca = new PCA()
       .setInputCol("features")
@@ -61,24 +57,19 @@ public class LogisticRegressionAnalysis{
       .setK(3)
       .fit(df);
 
-    Dataset<Row> result = pca.transform(df).select("pcaFeatures");
-    result.show(false);
+    Dataset<Row> result = pca
+      .transform(df)
+      .select("pcaFeatures");
 
-    // Converts Dataset to JavaRDD
-    JavaPairRDD<Object, Object> predictionAndLabels = test.mapToPair(p ->
-      new Tuple2<>(model.predict(p.features()), p.label()));
+    result.show(5);
 
-    LogisticRegressionModel model = new LogisticRegressionWithLBFGS()
-      .setNumClasses(10)
-      .run(training.rdd());
+    LogisticRegression lr = new LogisticRegression().setMaxIter(10).setRegParam(0.01);
 
-    MulticlassMetrics metrics = new MulticlassMetrics(predictionAndLabels.rdd());
-    double accuracy = metrics.accuracy();
-    System.out.println("Accuracy = " + accuracy);
+    LogisticRegressionModel model = lr.fit(pca);
 
-    model.save(sc, "target/tmp/javaLogisticRegressionWithLBFGSModel");
-    LogisticRegressionModel sameModel = LogisticRegressionModel.load(sc,
-      outputFilePath);
+    Vector weights = model.weights();
+    // Given a dataset, predict each point's label, and show the results.
+    model.transform(df).show();
 
     spark.stop();
   }
