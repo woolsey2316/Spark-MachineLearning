@@ -68,8 +68,13 @@ public class LogisticRegressionAnalysis{
     LogisticRegressionModel model = lr.fit(pca);
 
     Vector weights = model.weights();
-    // Given a dataset, predict each point's label, and show the results.
-    model.transform(df).show();
+
+    Dataset<Row> test = spark
+      .read()
+      .schema(schema)
+      .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Test-label-28x28.csv");
+
+    Dataset<Row> result = model.transform(test).show();
 
     spark.stop();
   }

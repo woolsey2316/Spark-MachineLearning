@@ -80,7 +80,7 @@ public class MultilayerPerceptionClassifierAnalysis {
         .schema(schema)
         .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Test-label-28x28.csv");
 
-      Dataset<Row> results = model2.transform(test);
+      Dataset<Row> results = model.transform(test);
 
       for (Row r: rows.collectAsList()) {
         System.out.println("(" + r.get(0) + ", " + r.get(1) + ") -> prob=" + r.get(2)
