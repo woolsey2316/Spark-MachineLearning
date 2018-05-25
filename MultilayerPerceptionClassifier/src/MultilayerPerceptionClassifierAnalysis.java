@@ -18,14 +18,12 @@ import org.apache.spark.sql.Row;
 public class MultiLayerPerceptionClassifierAnalysis {
   public static void main(String[] args) {
     // Load training data
-    String inputFilePath = args[0], outputFilePath = args[1];
+    SparkSession spark = SparkSession
+    .builder()
+    .appName("Logistic Regression")
+    .getOrCreate();
 
     String outputFilePath = args[0];
-
-    SparkConf conf = new SparkConf();
-    JavaSparkContext sc = new JavaSparkContext(conf);
-    JavaRDD<String> data = sc.textFile(
-      "hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Test-28x28.csv");
 
     JavaRDD<LabeledPoint> parsedData = data.map(row -> {
     String[] features = row.split(",");
@@ -36,10 +34,14 @@ public class MultiLayerPerceptionClassifierAnalysis {
     return new LabeledPoint(Double.parseDouble(parts[0]), Vectors.dense(v));
     });
 
-    // specify layers for the neural network:
-    // input layer of size 4 (features), two intermediate of size 5 and 4
-    // and output of size 3 (classes)
-    int[] layers = new int[] {4, 5, 4, 3};
+    PCAModel pca = new PCA()
+      .setInputCol("features")
+      .setOutputCol("pcaFeatures")
+      .setK(3)
+      .fit(df);
+
+    Dataset<Row> result = pca.transform(df).select("pcaFeatures");
+    result.show(false);
 
     // create the trainer and set its parameters
     MultilayerPerceptronClassifier trainer = new MultilayerPerceptronClassifier()

@@ -31,21 +31,10 @@ public class LogisticRegressionAnalysis{
 
   public static void main(String[] args) {
 
-    String outputFilePath = args[0];
-
-    SparkConf conf = new SparkConf();
-		JavaSparkContext sc = new JavaSparkContext(conf);
-		JavaRDD<String> data = sc.textFile(
-      "hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Test-28x28.csv");
-
-    JavaRDD<LabeledPoint> parsedData = data.map(line -> {
-    String[] features = line.split(",");
-    double[] v = new double[features.length];
-    for (int i = 0; i < features.length - 1; i++) {
-      v[i] = Double.parseDouble(features[i]);
-    }
-    return new LabeledPoint(Double.parseDouble(parts[0]), Vectors.dense(v));
-    });
+    SparkSession spark = SparkSession
+    .builder()
+    .appName("Logistic Regression")
+    .getOrCreate();
 
     StructType schema = new StructType(new StructField[]{
       new StructField("label", DataTypes.DoubleType, false, Metadata.empty()),
@@ -56,6 +45,25 @@ public class LogisticRegressionAnalysis{
       .read()
       .schema(schema)
       .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Test-28x28.csv");
+
+    JavaRDD<LabeledPoint> parsedData = data.map(line -> {
+    String[] features = line.split(",");
+    double[] v = new double[features.length];
+    for (int i = 0; i < features.length - 1; i++) {
+      v[i] = Double.parseDouble(features[i]);
+    }
+    return new LabeledPoint(Double.parseDouble(parts[0]), Vectors.dense(v));
+    });
+
+    PCAModel pca = new PCA()
+      .setInputCol("features")
+      .setOutputCol("pcaFeatures")
+      .setK(3)
+      .fit(df);
+
+    Dataset<Row> result = pca.transform(df).select("pcaFeatures");
+    result.show(false);
+
     // Converts Dataset to JavaRDD
     JavaPairRDD<Object, Object> predictionAndLabels = test.mapToPair(p ->
       new Tuple2<>(model.predict(p.features()), p.label()));
