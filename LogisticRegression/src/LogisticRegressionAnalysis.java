@@ -28,6 +28,9 @@ spark-submit  \
  Stage3LG.jar \
  A2out1/
 *
+single line
+*
+spark-submit --class LogisticRegressionAnalysis --master yarn-cluster Stage3LG.jar A2out1/
 */
 
 public class LogisticRegressionAnalysis{
@@ -35,46 +38,66 @@ public class LogisticRegressionAnalysis{
   public static void main(String[] args) {
 
     String outputFilePath = args[0];
-    // Load training data
+    // Create spark session
     SparkSession spark = SparkSession
     .builder()
     .appName("Logistic Regression")
     .getOrCreate();
-
+    /**
+    Machine learning algorithms expect input data to be in a single vector that
+    represents all the features of the data point. The schema below takes 748 
+    columns each of integer type and produces a single column of vector type. 
+    This column is called "features".
+    **/
     StructType schema = new StructType(new StructField[]{
       new StructField("label", DataTypes.IntegerType, false, Metadata.empty()),
       new StructField("features", new VectorUDT(), false, Metadata.empty()),
     });
-
-    Dataset<Row> df = spark
+    /*
+    Spark will know to use SparseVector format for representing the image pixel values.
+    In Java, a DataFrame is represented by a Dataset of Rows
+    */ 
+    Dataset<Row> dataFrame = spark
       .read()
       .schema(schema)
       .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Train-label-28x28.csv");
 
+    /*
+      Principal component analysis transforms a set of observations into a set of orthogonal components. When removing 
+      Principal componets, start with those with the lowest variance in order to minimise inforation loss. In regression analysis 
+      One approach, especially when there are strong correlations between different possible explanatory variable  is to reduce them 
+      to a few principal components and then run the regression against them. project the 748 feature vectors into 3-dimensional principal components
+     */
     PCAModel pca = new PCA()
       .setInputCol("features")
-      .setOutputCol("pcaFeatures")
+      //only want the transformed vector, number of columns = 1
+      .setOutputCol("featuresPCA")
+      //number of principal components
       .setK(3)
-      .fit(df);
+      //trains pca with given data set
+      .fit(dataFrame);
 
-    Dataset<Row> result = pca
+    // result has k principal components in its vector
+    Dataset<Row> result = principleComponents
+      //the trained model performs the actual transformation
       .transform(df)
-      .select("pcaFeatures");
+      .select("featuresPCA");
 
-    result.show(5);
-
-    LogisticRegression lr = new LogisticRegression().setMaxIter(10).setRegParam(0.01);
-
-    LogisticRegressionModel model = lr.fit(pca);
-
-    Vector weights = model.weights();
+    LogisticRegressionModel model = new LogisticRegression()
+      .setMaxIter(10)
+      .setRegParam(0.01);
+      .fit(principleComponents);
 
     Dataset<Row> test = spark
       .read()
       .schema(schema)
       .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Test-label-28x28.csv");
 
-    Dataset<Row> result = model.transform(test).show();
+    Dataset<Row> result = model
+      .transform(test)
+      .show();
+
+    dataFrame.write.repartition(1).format("com.logistreg.spark.csv").option("header", "true").save("myfile.csv");
 
     spark.stop();
   }
