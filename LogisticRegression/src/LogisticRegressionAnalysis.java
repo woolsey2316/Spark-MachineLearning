@@ -80,7 +80,7 @@ public class LogisticRegressionAnalysis{
     // result has k principal components in its vector
     Dataset<Row> result = principleComponents
       //the trained model performs the actual transformation
-      .transform(df)
+      .transform(dataFrame)
       .select("featuresPCA");
 
     LogisticRegressionModel model = new LogisticRegression()

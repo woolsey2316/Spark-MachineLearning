@@ -3,6 +3,7 @@
 //DELETE hadoop-data/dn
 //DELETE hadoop-data/nn
 
+ssh localhost
 $HADOOP_HOME/sbin/stop-dfs.sh
 $HADOOP_HOME/sbin/stop-yarn.sh
 
@@ -15,19 +16,8 @@ http://localhost:50070/
 http://localhost:8088/
 
 
-hdfs dfs -mkdir /user
-hdfs dfs -mkdir /user/dwoo2888
-
-hdfs dfs -put ALLvideos.csv ALLvideos.csv
-
-$HADOOP_HOME/sbin/mr-jobhistory-daemon.sh start historyserver
-
-hadoop jar YoutubeTrend.jar TrendCount ALLvideos.csv YoutubeData GB US
-
-hdfs dfs -cat YoutubeData/part-r-00000
-
-hadoop jar YoutubeTrend.jar TrendCount ALLvideos.csv output5 GB US
-
-/####################################################################
-
-spark-submit --class TrendingImpactViewNumber --master local a2.jar /user/dwoo2888/ALLvideos.csv output2
+spark-submit  \
+ --class LogisticRegressionAnalysis \
+ --master yarn-cluster \
+ Stage3LG.jar \
+ A2out1/
