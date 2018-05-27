@@ -53,12 +53,12 @@ public class MultilayerPerceptionClassifierAnalysis {
       new StructField("features", new VectorUDT(), false, Metadata.empty()),
     });
 
-    Dataset<Row> dataFrame = spark
+    Dataset<Row> trainingData = spark
       .read()
       .schema(schema)
       .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Train-label-28x28.csv");
 
-    Dataset<Row> test = spark
+    Dataset<Row> testingData = spark
       .read()
       .schema(schema)
       .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Test-label-28x28.csv");
@@ -66,18 +66,26 @@ public class MultilayerPerceptionClassifierAnalysis {
   	int[] layers = new int[] {3, 4, 4, 2};
 
   	// Trainer phase
-  	MultilayerPerceptronClassifier trainer = new MultilayerPerceptronClassifier()
+  	MultilayerPerceptronClassifier multilayerPerceptronClassifier = new MultilayerPerceptronClassifier()
   	  .setLayers(layers)
   	  // We are assigned to examine the various block sizes
-  	  .setBlockSize(30)
   	  .setSeed(1234L)
   	  .setMaxIter(100);
 
-  	// train the model
-  	MultilayerPerceptronClassificationModel model = trainer.fit(dataFrame);
+    ParamMap[] paramGrid = new ParamGridBuilder()
+      .addGrid(principleComponents.setBlockSize(), new int[] {5, 15, 30})
+      .build();
+
+    TrainValidationSplit trainValidationSplit = new TrainValidationSplit()
+      .setEstimator(multilayerPerceptronClassifier)
+      .setEvaluator(new RegressionEvaluator())
+      .setEstimatorParamMaps(paramGrid);
+
+    TrainValidationSplitModel model = trainValidationSplit
+      .fit(trainingData);
 
   	// compute accuracy on the test set
-  	Dataset<Row> evaluatePrediction = model.transform(test).select("prediction", "label");
+  	Dataset<Row> evaluatePrediction = model.transform(testingData).select("prediction", "label");
       MulticlassClassificationEvaluator evaluator = new MulticlassClassificationEvaluator()
   	  .setMetricName("accuracy");
 
