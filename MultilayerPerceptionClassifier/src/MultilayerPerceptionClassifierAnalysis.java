@@ -1,5 +1,6 @@
 import java.util.Arrays;
 import java.util.List;
+import java.io.IOException;
 
 import org.apache.spark.ml.classification.MultilayerPerceptronClassificationModel;
 import org.apache.spark.ml.classification.MultilayerPerceptronClassifier;
@@ -56,32 +57,37 @@ public class MultilayerPerceptionClassifierAnalysis {
       .read()
       .schema(schema)
       .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Train-label-28x28.csv");
-    //PCA reduction may not be needed for this algorithm
-    PCAModel pca = new PCA()
-      .setInputCol("features")
-      .setOutputCol("pcaFeatures")
-      .setK(3)
-      .fit(dataFrame);
 
-	int[] layers = new int[] {3, 4, 4, 2};
+    Dataset<Row> test = spark
+      .read()
+      .schema(schema)
+      .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Test-label-28x28.csv");
 
-	// Trainer phase
-	MultilayerPerceptronClassifier trainer = new MultilayerPerceptronClassifier()
-	  .setLayers(layers)
-	  // We are assigned to examine the various block sizes
-	  .setBlockSize(30)
-	  .setSeed(1234L)
-	  .setMaxIter(100);
+  	int[] layers = new int[] {3, 4, 4, 2};
 
-	// train the model
-	MultilayerPerceptronClassificationModel model = trainer.fit(pca);
+  	// Trainer phase
+  	MultilayerPerceptronClassifier trainer = new MultilayerPerceptronClassifier()
+  	  .setLayers(layers)
+  	  // We are assigned to examine the various block sizes
+  	  .setBlockSize(30)
+  	  .setSeed(1234L)
+  	  .setMaxIter(100);
 
-	// compute accuracy on the test set
-	Dataset<Row> evaluatePrediction = model.transform(df).select("prediction", "label");
-    MulticlassClassificationEvaluator evaluator = new MulticlassClassificationEvaluator()
-	  .setMetricName("accuracy");
+  	// train the model
+  	MultilayerPerceptronClassificationModel model = trainer.fit(dataFrame);
 
-	dataFrame.write.repartition(1).format("com.MultilayerPerceptron.spark.csv").option("header", "true").save(outputFilePath + ".csv");
+  	// compute accuracy on the test set
+  	Dataset<Row> evaluatePrediction = model.transform(test).select("prediction", "label");
+      MulticlassClassificationEvaluator evaluator = new MulticlassClassificationEvaluator()
+  	  .setMetricName("accuracy");
+
+    try {
+      evaluator.save(outputFilePath + "logreg.csv");
+    }
+    catch(IOException e) {
+      e.printStackTrace();
+    }
+
     spark.stop();
   }
 }
