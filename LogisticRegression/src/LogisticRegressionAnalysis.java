@@ -97,7 +97,7 @@ public class LogisticRegressionAnalysis{
       .transform(test)
       .show();
 
-    dataFrame.write.repartition(1).format("com.logistreg.spark.csv").option("header", "true").save("myfile.csv");
+    dataFrame.write.repartition(1).format("com.logisticregression.spark.csv").option("header", "true").save(outputFilePath + ".csv");
 
     spark.stop();
   }

@@ -27,6 +27,13 @@ spark-submit  \
  Stage3MPC.jar \
  A2out2/
 *
+Multilayer perceptron classifier (MLPC) is a kind of feedforward 
+artificial neural network. MLPC has many layers of nodes. Each layer
+is fully connected to the next layer in the network. Nodes in the input layer 
+represent the input data. The MLP consists of three or more layers (an input and 
+an output layer with one or more hidden layers) of nonlinearly-activating nodes 
+making it a deep neural network. Since MLPs are fully connected, each node in one 
+layer connects with a certain weight to every node in the following layer.
 */
 
 public class MultilayerPerceptionClassifierAnalysis {
@@ -37,7 +44,7 @@ public class MultilayerPerceptionClassifierAnalysis {
     // Load training data
     SparkSession spark = SparkSession
     .builder()
-    .appName("Logistic Regression")
+    .appName("Multilayer Perception Classifier")
     .getOrCreate();
 
     StructType schema = new StructType(new StructField[]{
@@ -45,49 +52,36 @@ public class MultilayerPerceptionClassifierAnalysis {
       new StructField("features", new VectorUDT(), false, Metadata.empty()),
     });
 
-    Dataset<Row> df = spark
+    Dataset<Row> dataFrame = spark
       .read()
       .schema(schema)
       .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Train-label-28x28.csv");
-
+    //May not be needed at all
     PCAModel pca = new PCA()
       .setInputCol("features")
       .setOutputCol("pcaFeatures")
       .setK(3)
-      .fit(df);
+      .fit(dataFrame);
 
-      int[] layers = new int[] {3, 4, 4, 2};
+	int[] layers = new int[] {3, 4, 4, 2};
 
-      // Trainer phase
-      MultilayerPerceptronClassifier trainer = new MultilayerPerceptronClassifier()
-        .setLayers(layers)
-        .setBlockSize(30)
-        .setSeed(1234L)
-        .setMaxIter(100);
+	// Trainer phase
+	MultilayerPerceptronClassifier trainer = new MultilayerPerceptronClassifier()
+	  .setLayers(layers)
+	  // We are assigned to examine the various block sizes
+	  .setBlockSize(30)
+	  .setSeed(1234L)
+	  .setMaxIter(100);
 
-      // train the model
-      MultilayerPerceptronClassificationModel model = trainer.fit(pca);
+	// train the model
+	MultilayerPerceptronClassificationModel model = trainer.fit(pca);
 
-      // compute accuracy on the test set
-      Dataset<Row> result = model.transform(df);
-      Dataset<Row> predictionAndLabels = result.select("prediction", "label");
-      MulticlassClassificationEvaluator evaluator = new MulticlassClassificationEvaluator()
-        .setMetricName("accuracy");
+	// compute accuracy on the test set
+	Dataset<Row> evaluatePrediction = model.transform(df).select("prediction", "label");
+    MulticlassClassificationEvaluator evaluator = new MulticlassClassificationEvaluator()
+	  .setMetricName("accuracy");
 
-      // Test phase
-      Dataset<Row> test = spark
-        .read()
-        .schema(schema)
-        .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Test-label-28x28.csv");
-
-      Dataset<Row> results = model.transform(test);
-
-      for (Row r: rows.collectAsList()) {
-        System.out.println("(" + r.get(0) + ", " + r.get(1) + ") -> prob=" + r.get(2)
-          + ", prediction=" + r.get(3));
-      }
-
-      System.out.println("Test set accuracy = " + evaluator.evaluate(predictionAndLabels));
+	dataFrame.write.repartition(1).format("com.MultilayerPerceptron.spark.csv").option("header", "true").save(outputFilePath + ".csv");
     spark.stop();
   }
 }
