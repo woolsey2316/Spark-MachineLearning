@@ -3,6 +3,11 @@ import java.util.List;
 import java.io.IOException;
 
 import org.apache.spark.SparkConf;
+import org.apache.spark.ml.param.ParamMap;
+import org.apache.spark.ml.tuning.ParamGridBuilder;
+import org.apache.spark.ml.tuning.TrainValidationSplit;
+import org.apache.spark.ml.tuning.TrainValidationSplitModel;
+import org.apache.spark.ml.evaluation.RegressionEvaluator;
 
 import org.apache.spark.SparkContext;
 import org.apache.spark.sql.SparkSession;
@@ -21,12 +26,20 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.Metadata;
 
+import org.apache.spark.ml.feature.HashingTF;
+import org.apache.spark.ml.feature.IDF;
+import org.apache.spark.ml.feature.IDFModel;
+import org.apache.spark.ml.feature.Tokenizer;
+
 /**
 *submit to a yarn cluster
 *
 spark-submit  \
  --class LogisticRegressionAnalysis \
- --master yarn-cluster \
+ --master local[2] \
+ --driver-memory 4g \
+ --num-executors 4 \
+ --executor-cores 5 \
  Stage3LG.jar \
  A2out1/
 *
@@ -48,46 +61,46 @@ public class LogisticRegressionAnalysis{
     String outputFilePath = args[0];
     /*
     Machine learning algorithms expect input data to be in a single vector that
-    represents all the features of the data point. The schema below takes 748 
-    columns each of integer type and produces a single column of vector type. 
+    represents all the features of the data point. The schema below takes 748
+    columns each of integer type and produces a single column of vector type.
     This column is called "features".
     */
     StructType schema = new StructType(new StructField[]{
       new StructField("label", DataTypes.IntegerType, false, Metadata.empty()),
-      new StructField("features", new VectorUDT(), false, Metadata.empty()),
+      new StructField("pixel", DataTypes.StringType, false, Metadata.empty()),
     });
+
+// Fit the pipeline to training documents.
     /*
     Spark will know to use SparseVector format for representing the image pixel values.
     In Java, a DataFrame is represented by a Dataset of Rows
-    */ 
+    */
     Dataset<Row> trainingData = spark
       .read()
-      .schema(schema)
+      .option("inferschema","true")
       .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Train-label-28x28.csv");
+
+      trainingData.show();
 
     Dataset<Row> testingData = spark
       .read()
-      .schema(schema)
+      .option("inferschema","true")
       .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Test-label-28x28.csv");
+
     /*
-      Principal component analysis transforms a set of observations into a set of orthogonal components. When removing 
-      Principal componets, start with those with the lowest variance in order to minimise inforation loss. In regression analysis 
-      One approach, especially when there are strong correlations between different possible explanatory variable  is to reduce them 
+      Principal component analysis transforms a set of observations into a set of orthogonal components. When removing
+      Principal componets, start with those with the lowest variance in order to minimise inforation loss. In regression analysis
+      One approach, especially when there are strong correlations between different possible explanatory variable  is to reduce them
       to a few principal components and then run the regression against them. project the 748 feature vectors into 3-dimensional principal components
      */
-    PCA principleComponents = new PCA()
+    PCA principalComponents = new PCA()
       .setInputCol("features")
       //only want the transformed vector, number of columns = 1
-      .setOutputCol("featuresPCA")
+      .setOutputCol("featuresPCA");
 
     ParamMap[] paramGrid = new ParamGridBuilder()
-      .addGrid(principleComponents.setK(), new int[] {5, 20, 50, 748})
+      .addGrid(principalComponents.k(), new int[] {5, 20, 50, 748})
       .build();
-
-    // result has k principal components in its vector
-    Dataset<Row> result = principleComponents
-      .transform(trainingData)
-      .select("featuresPCA");
 
     LogisticRegression logreg = new LogisticRegression()
       .setMaxIter(10)
@@ -104,7 +117,7 @@ public class LogisticRegressionAnalysis{
     model.transform(testingData);
 
     try {
-      model.save(outputFilePath + "LogisticRegressionModel");
+      model.save(outputFilePath + "LogisticRegressionModel.csv");
     }
     catch(IOException e) {
       e.printStackTrace();
