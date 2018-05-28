@@ -18,6 +18,7 @@ import org.apache.spark.ml.classification.LogisticRegression;
 import org.apache.spark.ml.classification.LogisticRegressionModel;
 import org.apache.spark.ml.feature.PCAModel;
 import org.apache.spark.ml.feature.PCA;
+import org.apache.spark.ml.feature.VectorAssembler;
 
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.StructField;
@@ -67,24 +68,28 @@ public class LogisticRegressionAnalysis{
     */
     StructType schema = new StructType(new StructField[]{
       new StructField("label", DataTypes.IntegerType, false, Metadata.empty()),
-      new StructField("pixel", DataTypes.StringType, false, Metadata.empty()),
+      new StructField("feature", new VectorUDT(), false, Metadata.empty()),
     });
 
-// Fit the pipeline to training documents.
+    // Fit the pipeline to training documents.
     /*
     Spark will know to use SparseVector format for representing the image pixel values.
     In Java, a DataFrame is represented by a Dataset of Rows
     */
     Dataset<Row> trainingData = spark
       .read()
-      .option("inferschema","true")
+      .schema(schema)
       .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Train-label-28x28.csv");
 
       trainingData.show();
 
+    VectorAssembler assembler = new VectorAssembler()
+      .setInputCols(trainingData.columns())
+      .setOutputCol("features");
+
     Dataset<Row> testingData = spark
       .read()
-      .option("inferschema","true")
+      .schema(schema)
       .csv("hdfs://soit-hdp-pro-1.ucc.usyd.edu.au/share/MNIST/Test-label-28x28.csv");
 
     /*
